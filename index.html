@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chatty — Contrôle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b1020; --panel: #131a2e; --panel-2: #1a2340; --panel-3: #202b4c;
+      --text: #eef2ff; --muted: #9aa7cf; --border: rgba(255,255,255,.1);
+      --accent: #7c9cff; --accent-2: #5de4c7; --danger: #ff6b8a;
+      --shadow: 0 20px 60px rgba(0,0,0,.35);
+      --radius: 16px; --radius-sm: 12px; --sidebar-w: 380px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: radial-gradient(circle at top, #162040 0%, var(--bg) 55%); color: var(--text); font-family: Inter, system-ui, sans-serif; }
+    body { padding: 16px; }
+    .app { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); gap: 16px; }
+    .panel { background: rgba(19,26,46,.88); backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+    .sidebar { display: flex; flex-direction: column; overflow: hidden; }
+    .sidebar-header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .sidebar-title-wrap { flex: 1; min-width: 0; }
+    .sidebar-title { font-size: 17px; font-weight: 800; margin: 0; }
+    .sidebar-subtitle { font-size: 11px; color: var(--muted); margin: 1px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .toggle-btn { appearance: none; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-3); color: var(--muted); width: 32px; height: 32px; padding: 0; flex-shrink: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s, color .15s; }
+    .toggle-btn:hover { background: var(--panel-2); color: var(--text); }
+    .toggle-btn svg { transition: transform .25s ease; }
+    .sidebar.collapsed .toggle-btn svg { transform: rotate(180deg); }
+    .hdr-btn { appearance: none; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-3); color: var(--muted); height: 32px; padding: 0 10px; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s, border-color .15s; }
+    .hdr-btn:hover { background: var(--panel-2); color: var(--text); }
+    .hdr-btn.danger { border-color: rgba(255,107,138,.35); color: var(--danger); }
+    .hdr-btn.danger:hover { background: rgba(255,107,138,.12); border-color: rgba(255,107,138,.6); color: var(--danger); }
+    .sidebar-body { display: flex; flex-direction: column; gap: 16px; padding: 18px; overflow: hidden; max-height: 9999px; transition: max-height .35s ease, opacity .25s ease, padding .25s ease; opacity: 1; }
+    .sidebar.collapsed .sidebar-body { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; }
+
+    .stack { display: grid; gap: 12px; }
+    .row { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+    label { display: grid; gap: 7px; font-size: 13px; color: var(--muted); }
+    .lead { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    input, textarea, select { width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 11px 14px; font: inherit; }
+    input[type=number] { -moz-appearance: textfield; }
+    input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    select option { background: #1a2340; }
+    input:focus, textarea:focus, select:focus { outline: 2px solid rgba(124,156,255,.4); border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 90px; font-family: 'Fira Mono','Consolas',monospace; font-size: 12px; line-height: 1.55; }
+    button { appearance: none; border: 0; border-radius: 12px; padding: 11px 16px; font: inherit; font-weight: 700; color: white; background: linear-gradient(135deg, var(--accent), #5f7dff); cursor: pointer; transition: transform .15s ease, filter .15s ease; }
+    button:hover { transform: translateY(-1px); filter: brightness(1.05); }
+    button.secondary { background: var(--panel-3); color: var(--text); border: 1px solid var(--border); }
+    button.danger { background: linear-gradient(135deg, var(--danger), #ff456e); }
+    button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .links { display: grid; gap: 8px; }
+    .linkbox { border: 1px dashed rgba(124,156,255,.35); border-radius: 12px; padding: 10px 12px; background: rgba(124,156,255,.08); font-size: 12px; color: var(--muted); word-break: break-all; }
+    .linkbox a { color: #c8d4ff; }
+    .small { font-size: 12px; color: var(--muted); }
+    .pill { display: inline-flex; align-items: center; gap: 7px; background: rgba(93,228,199,.12); color: #c9fff3; border: 1px solid rgba(93,228,199,.2); border-radius: 999px; padding: 6px 11px; font-size: 11px; }
+    .dot-anim { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-2); box-shadow: 0 0 0 5px rgba(93,228,199,.12); }
+    .section-title { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-top: 4px; }
+    .emote-status { font-size: 11px; color: var(--muted); padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,.03); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 3px; }
+    .emote-status span { display: flex; align-items: center; gap: 5px; }
+    .emote-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+    .emote-dot.ok { background: var(--accent-2); }
+    .emote-dot.err { background: var(--danger); }
+    .pos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .pos-btn {
+      appearance: none; border: 1px solid var(--border); border-radius: 10px;
+      background: var(--panel-2); color: var(--muted); padding: 8px 4px;
+      font-size: 11px; font-weight: 600; cursor: pointer;
+      transition: background .15s, border-color .15s, color .15s;
+      text-align: center; line-height: 1.3;
+    }
+    .pos-btn:hover { background: var(--panel-3); color: var(--text); }
+    .pos-btn.active { background: rgba(124,156,255,.18); border-color: rgba(124,156,255,.7); color: var(--accent); }
+    .pos-btn span { display: block; font-size: 16px; margin-bottom: 2px; }
+
+    .main { display: grid; grid-template-rows: auto 1fr; overflow: hidden; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .toolbar h2 { margin: 0; font-size: 17px; }
+    .toolbar p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .chat { overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 9px; background: linear-gradient(180deg, rgba(255,255,255,.015), transparent 30%); }
+
+    .msg { border: 1px solid rgba(255,255,255,.07); background: rgba(255,255,255,.03); border-radius: 13px; padding: 11px 13px; cursor: pointer; transition: transform .12s ease, background .12s ease, border-color .12s ease, opacity .2s ease; }
+    .msg:hover { transform: translateX(2px); background: rgba(255,255,255,.06); border-color: rgba(124,156,255,.35); }
+    .msg .meta { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .msg .author { font-weight: 800; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 6px; border-radius: 6px; margin: -2px -6px; transition: background .12s; }
+    .msg .author:hover { background: rgba(255,255,255,.1); }
+    .msg .time { color: var(--muted); font-size: 11px; flex-shrink: 0; margin-left: auto; }
+    .msg .text { font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+    .msg .text img.emote { height: 1.6em; width: auto; vertical-align: middle; margin: 0 1px; }
+    .msg-hint { display: none; margin-top: 6px; font-size: 11px; color: var(--muted); text-align: right; }
+    .msg.selected .msg-hint { display: block; }
+    .msg.selected { background: linear-gradient(135deg, rgba(124,156,255,.16), rgba(93,228,199,.1)); border-color: rgba(124,156,255,.8); box-shadow: inset 0 0 0 1px rgba(255,255,255,.05), 0 0 0 1px rgba(124,156,255,.2); }
+    .msg.after-selected { opacity: .38; filter: saturate(.35); }
+    .empty { display: grid; place-items: center; color: var(--muted); text-align: center; padding: 40px; min-height: 200px; }
+
+    @media (max-width: 980px) { .app { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="panel sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title-wrap">
+          <p class="sidebar-title">Chatty</p>
+          <p class="sidebar-subtitle" id="sidebarSubtitle">Panneau de contrôle</p>
+        </div>
+        <div class="header-actions">
+          <button class="hdr-btn danger" id="clearBtn" title="Effacer l'overlay">✕ Effacer</button>
+          <button class="hdr-btn" id="simulateBtn" title="Envoyer un message de test">▶ Test</button>
+          <button class="toggle-btn" id="toggleBtn" aria-label="Replier/déplier">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 10 8 6 12 10"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="sidebar-body">
+        <div class="stack">
+          <div class="pill"><span class="dot-anim"></span> Sans bot · WebSocket Twitch IRC</div>
+          <p class="lead" id="leadText">Clic sur un message → overlay. Re-clic → retire. Clic sur un pseudo → derniers messages dans l'overlay.</p>
+        </div>
+
+        <div class="stack">
+          <div class="section-title">Connexion</div>
+          <label>Chaîne Twitch
+            <input id="channel" type="text" placeholder="ex: zerator">
+          </label>
+          <div class="row">
+            <button id="connectBtn">Connecter</button>
+            <button id="disconnectBtn" class="secondary">Déconnecter</button>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="section-title">Emotes tierces</div>
+          <div class="emote-status" id="emoteStatus">
+            <span><span class="emote-dot" id="dot7tv"></span>7TV — <span id="lbl7tv">non chargé</span></span>
+            <span><span class="emote-dot" id="dotBttv"></span>BTTV — <span id="lblBttv">non chargé</span></span>
+            <span><span class="emote-dot" id="dotFfz"></span>FFZ — <span id="lblFfz">non chargé</span></span>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="section-title">Paramètres overlay</div>
+
+          <label>Titre overlay
+            <input id="overlayTitle" type="text" value="Message mis en avant">
+          </label>
+
+          <label>Historique pseudo (nb de messages : 2–10)
+            <input id="historyCount" type="number" min="2" max="10" value="3">
+          </label>
+
+          <div style="font-size:13px;color:var(--muted);margin-bottom:2px">Position dans l'overlay</div>
+          <div class="pos-grid" id="posGrid">
+            <button class="pos-btn" data-pos="top-left"    ><span>↖</span>Haut G.</button>
+            <button class="pos-btn" data-pos="top-right"   ><span>↗</span>Haut D.</button>
+            <button class="pos-btn" data-pos="middle-left" ><span>←</span>Milieu G.</button>
+            <button class="pos-btn" data-pos="middle-right"><span>→</span>Milieu D.</button>
+            <button class="pos-btn active" data-pos="bottom-left" ><span>↙</span>Bas G.</button>
+            <button class="pos-btn" data-pos="bottom-right"><span>↘</span>Bas D.</button>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="section-title">CSS personnalisé — boîte overlay</div>
+          <label style="gap:6px">
+            <span>Styles appliqués à <code style="font-size:11px;opacity:.7">.card</code> dans l'overlay</span>
+            <textarea id="customCss" spellcheck="false" placeholder="/* votre CSS ici */"></textarea>
+          </label>
+          <button id="applyCssBtn" class="secondary" style="font-size:12px;padding:9px 12px">Appliquer le CSS</button>
+        </div>
+
+        <div class="links">
+          <div class="linkbox"><strong>Panneau :</strong><br><a id="controlLink" href="#" target="_blank" rel="noopener noreferrer"></a></div>
+          <div class="linkbox"><strong>Overlay OBS :</strong><br><a id="overlayLink" href="#" target="_blank" rel="noopener noreferrer"></a></div>
+        </div>
+        <p class="small">Dans OBS : ajoute overlay.html comme source navigateur.</p>
+      </div>
+    </aside>
+
+    <section class="panel main">
+      <div class="toolbar">
+        <div>
+          <h2>Chat en direct</h2>
+          <p>Clic message → overlay · re-clic → retire · clic pseudo → historique viewer</p>
+        </div>
+        <div class="small"><span id="messageCount">0</span> msg</div>
+      </div>
+      <div class="chat" id="chatList">
+        <div class="empty">Aucun message.<br>Connecte une chaîne ou utilise le bouton test.</div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const channelInput      = document.getElementById('channel');
+    const connectBtn        = document.getElementById('connectBtn');
+    const disconnectBtn     = document.getElementById('disconnectBtn');
+    const clearBtn          = document.getElementById('clearBtn');
+    const simulateBtn       = document.getElementById('simulateBtn');
+    const titleInput        = document.getElementById('overlayTitle');
+    const historyCountInput = document.getElementById('historyCount');
+    const customCssArea     = document.getElementById('customCss');
+    const applyCssBtn       = document.getElementById('applyCssBtn');
+    const chatList          = document.getElementById('chatList');
+    const messageCount      = document.getElementById('messageCount');
+    const controlLink       = document.getElementById('controlLink');
+    const overlayLink       = document.getElementById('overlayLink');
+    const sidebar           = document.getElementById('sidebar');
+    const toggleBtn         = document.getElementById('toggleBtn');
+    const sidebarSub        = document.getElementById('sidebarSubtitle');
+    const posGrid           = document.getElementById('posGrid');
+    const leadText          = document.getElementById('leadText');
+
+    const DEFAULT_CSS = [
+      '/* Opacité de la boîte de message (90 %) */',
+      '.card {',
+      '  background: rgba(8, 12, 24, 0.90) !important;',
+      '  backdrop-filter: blur(18px);',
+      '}',
+      '',
+      '/* Taille du texte du message mis en avant */',
+      '/* Valeur par défaut : clamp(28px, 2.8vw, 44px)  */',
+      '.message {',
+      '  font-size: 24px;',
+      '}',
+      '',
+      '/* Taille du texte dans le mode historique viewer */',
+      '/* Valeur par défaut : clamp(16px, 1.6vw, 24px)  */',
+      '.history-text {',
+      '  font-size: 20px;',
+      '}'
+    ].join('\n');
+
+    let currentPosition = 'bottom-left';
+    const POS_ALIGN = {
+      'top-left':     { alignItems: 'start',  justifyContent: 'start'  },
+      'top-right':    { alignItems: 'start',  justifyContent: 'end'    },
+      'middle-left':  { alignItems: 'center', justifyContent: 'start'  },
+      'middle-right': { alignItems: 'center', justifyContent: 'end'    },
+      'bottom-left':  { alignItems: 'end',    justifyContent: 'start'  },
+      'bottom-right': { alignItems: 'end',    justifyContent: 'end'    },
+    };
+
+    const state = {
+      socket: null, channel: '', messages: [], selectedId: null,
+      historyUser: null,
+      maxMessages: 250, bc: null, reconnectTimer: null, manualClose: false
+    };
+
+    const emoteMap = new Map();
+
+    function setEmoteDot(id, lblId, st, text) {
+      document.getElementById(id).className = 'emote-dot' + (st === 'ok' ? ' ok' : st === 'err' ? ' err' : '');
+      document.getElementById(lblId).textContent = text;
+    }
+
+    async function safeFetch(url) {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    }
+
+    async function load7TV(login) {
+      setEmoteDot('dot7tv', 'lbl7tv', '', 'chargement...');
+      try {
+        let twitchId = null;
+        try {
+          const bttv = await safeFetch(`https://api.betterttv.net/3/cached/users/twitch/${encodeURIComponent(login)}`);
+          twitchId = bttv.channelId ? String(bttv.channelId) : null;
+        } catch(_) {}
+        let count = 0;
+        if (twitchId) {
+          try {
+            const data = await safeFetch(`https://7tv.io/v3/users/twitch/${encodeURIComponent(twitchId)}`);
+            for (const e of data.emote_set?.emotes ?? []) {
+              const name = e.name;
+              const files = e.data?.host?.files ?? [];
+              const file = files.find(f => f.name === '2x.webp') || files.find(f => f.name === '1x.webp') || files[0];
+              if (!name || !file) continue;
+              const url = 'https:' + e.data.host.url + '/' + file.name;
+              if (!emoteMap.has(name)) { emoteMap.set(name, { url, source: '7tv' }); count++; }
+            }
+          } catch(_) {}
+        }
+        const global = await safeFetch('https://7tv.io/v3/emote-sets/global');
+        for (const e of global.emotes ?? []) {
+          const name = e.name;
+          const files = e.data?.host?.files ?? [];
+          const file = files.find(f => f.name === '2x.webp') || files.find(f => f.name === '1x.webp') || files[0];
+          if (!name || !file) continue;
+          const url = 'https:' + e.data.host.url + '/' + file.name;
+          if (!emoteMap.has(name)) { emoteMap.set(name, { url, source: '7tv' }); count++; }
+        }
+        setEmoteDot('dot7tv', 'lbl7tv', 'ok', count + ' emotes' + (twitchId ? '' : ' (globales seulement)'));
+      } catch(err) {
+        setEmoteDot('dot7tv', 'lbl7tv', 'err', 'erreur (' + err.message + ')');
+      }
+    }
+
+    async function loadBTTV(login) {
+      setEmoteDot('dotBttv', 'lblBttv', '', 'chargement...');
+      try {
+        let count = 0;
+        const global = await safeFetch('https://api.betterttv.net/3/cached/emotes/global');
+        for (const e of global) {
+          if (!emoteMap.has(e.code)) { emoteMap.set(e.code, { url: `https://cdn.betterttv.net/emote/${e.id}/2x`, source: 'bttv' }); count++; }
+        }
+        try {
+          const ch = await safeFetch(`https://api.betterttv.net/3/cached/users/twitch/${encodeURIComponent(login)}`);
+          for (const e of [...(ch.channelEmotes ?? []), ...(ch.sharedEmotes ?? [])]) {
+            if (!emoteMap.has(e.code)) { emoteMap.set(e.code, { url: `https://cdn.betterttv.net/emote/${e.id}/2x`, source: 'bttv' }); count++; }
+          }
+        } catch(_) {}
+        setEmoteDot('dotBttv', 'lblBttv', 'ok', count + ' emotes');
+      } catch(err) {
+        setEmoteDot('dotBttv', 'lblBttv', 'err', 'erreur (' + err.message + ')');
+      }
+    }
+
+    async function loadFFZ(login) {
+      setEmoteDot('dotFfz', 'lblFfz', '', 'chargement...');
+      try {
+        let count = 0;
+        const global = await safeFetch('https://api.frankerfacez.com/v1/set/global');
+        for (const set of Object.values(global.sets ?? {})) {
+          for (const e of set.emoticons ?? []) {
+            const url = e.urls?.['2'] || e.urls?.['1'];
+            if (url && !emoteMap.has(e.name)) { emoteMap.set(e.name, { url: url.startsWith('//') ? 'https:' + url : url, source: 'ffz' }); count++; }
+          }
+        }
+        try {
+          const ch = await safeFetch(`https://api.frankerfacez.com/v1/room/${encodeURIComponent(login)}`);
+          for (const set of Object.values(ch.sets ?? {})) {
+            for (const e of set.emoticons ?? []) {
+              const url = e.urls?.['2'] || e.urls?.['1'];
+              if (url && !emoteMap.has(e.name)) { emoteMap.set(e.name, { url: url.startsWith('//') ? 'https:' + url : url, source: 'ffz' }); count++; }
+            }
+          }
+        } catch(_) {}
+        setEmoteDot('dotFfz', 'lblFfz', 'ok', count + ' emotes');
+      } catch(err) {
+        setEmoteDot('dotFfz', 'lblFfz', 'err', 'erreur (' + err.message + ')');
+      }
+    }
+
+    async function loadThirdPartyEmotes(login) {
+      emoteMap.clear();
+      await Promise.allSettled([load7TV(login), loadBTTV(login), loadFFZ(login)]);
+    }
+
+    function getHistoryCount() {
+      const v = parseInt(historyCountInput.value, 10);
+      return isNaN(v) ? 3 : Math.min(10, Math.max(2, v));
+    }
+
+    function updateLeadText() {
+      const n = getHistoryCount();
+      leadText.textContent = `Clic sur un message → overlay. Re-clic → retire. Clic sur un pseudo → ${n} derniers messages dans l'overlay.`;
+    }
+    historyCountInput.addEventListener('input', () => {
+      updateLeadText();
+      if (state.historyUser) showUserHistory(state.historyUser, true);
+    });
+
+    posGrid.addEventListener('click', e => {
+      const btn = e.target.closest('.pos-btn');
+      if (!btn) return;
+      posGrid.querySelectorAll('.pos-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentPosition = btn.dataset.pos;
+      publishPosition();
+    });
+
+    function publishPosition() {
+      const align = POS_ALIGN[currentPosition] || POS_ALIGN['bottom-left'];
+      const payload = { type: 'position', position: currentPosition, ...align, emittedAt: Date.now() };
+      if (state.bc) state.bc.postMessage(payload);
+      try {
+        const s = localStorage.getItem('twitch-highlight-sync');
+        localStorage.setItem('twitch-highlight-sync', JSON.stringify({ ...(s ? JSON.parse(s) : {}), ...payload }));
+      } catch(_) {}
+    }
+
+    toggleBtn.addEventListener('click', () => sidebar.classList.toggle('collapsed'));
+
+    function makeLinks() {
+      const href = window.location.href;
+      const dir  = href.slice(0, href.lastIndexOf('/') + 1);
+      controlLink.href = href; controlLink.textContent = href;
+      const ovUrl = dir + 'overlay.html';
+      overlayLink.href = ovUrl; overlayLink.textContent = ovUrl;
+    }
+
+    function setStatus(text, tone) {
+      sidebarSub.textContent = tone==='ok' && state.channel ? '🟢 #'+state.channel : tone==='error' ? '🔴 Déconnecté' : 'Panneau de contrôle';
+    }
+
+    function initBridge() { if ('BroadcastChannel' in window) state.bc = new BroadcastChannel('twitch-highlight-overlay'); }
+
+    function serializeEmoteMap() { return Object.fromEntries(emoteMap); }
+
+    function publish(payload) {
+      const align = POS_ALIGN[currentPosition] || POS_ALIGN['bottom-left'];
+      const full = {
+        ...payload,
+        title: titleInput.value.trim() || 'Message mis en avant',
+        customCss: customCssArea.value,
+        thirdPartyEmotes: serializeEmoteMap(),
+        position: currentPosition,
+        alignItems: align.alignItems,
+        justifyContent: align.justifyContent,
+        emittedAt: Date.now()
+      };
+      if (state.bc) state.bc.postMessage(full);
+      try { localStorage.setItem('twitch-highlight-sync', JSON.stringify(full)); } catch(_) {}
+    }
+
+    function publishCssOnly() {
+      const p = { type: 'css', customCss: customCssArea.value, emittedAt: Date.now() };
+      if (state.bc) state.bc.postMessage(p);
+      try {
+        const s = localStorage.getItem('twitch-highlight-sync');
+        localStorage.setItem('twitch-highlight-sync', JSON.stringify({ ...(s ? JSON.parse(s) : {}), customCss: customCssArea.value }));
+      } catch(_) {}
+    }
+    applyCssBtn.addEventListener('click', publishCssOnly);
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    }
+
+    function parseEmotes(emoteTag, rawMessage) {
+      if (!emoteTag) return [];
+      const result = [];
+      for (const part of emoteTag.split('/')) {
+        const [id, ranges] = part.split(':');
+        if (!id || !ranges) continue;
+        for (const range of ranges.split(',')) {
+          const [s, e] = range.split('-').map(Number);
+          if (isNaN(s) || isNaN(e)) continue;
+          const name = [...rawMessage].slice(s, e + 1).join('');
+          result.push({ id, start: s, end: e, name });
+        }
+      }
+      return result.sort((a, b) => a.start - b.start);
+    }
+
+    /**
+     * Déduit le rôle de l'auteur à partir du tag IRC `badges`.
+     * Priorité : broadcaster > moderator | lead_moderator > vip > viewer
+     * Retourne : 'broadcaster' | 'moderator' | 'vip' | 'viewer'
+     */
+    function parseRole(badgesTag) {
+      if (!badgesTag) return 'viewer';
+      const badges = badgesTag.split(',').map(b => b.split('/')[0]);
+      if (badges.includes('broadcaster'))    return 'broadcaster';
+      if (badges.includes('moderator'))      return 'moderator';
+      if (badges.includes('lead_moderator')) return 'moderator';
+      if (badges.includes('vip'))            return 'vip';
+      return 'viewer';
+    }
+
+    function renderMessageHtml(rawMessage, twitchEmotes, thirdParty) {
+      const map = thirdParty instanceof Map ? thirdParty : (thirdParty ? new Map(Object.entries(thirdParty)) : new Map());
+      const chars = [...rawMessage];
+      const twitchSorted = (twitchEmotes || []).slice().sort((a, b) => a.start - b.start);
+      const segments = [];
+      let cursor = 0;
+      for (const em of twitchSorted) {
+        if (em.start > cursor) segments.push({ type: 'text', value: chars.slice(cursor, em.start).join('') });
+        segments.push({ type: 'img', url: `https://static-cdn.jtvnw.net/emoticons/v2/${em.id}/default/dark/2.0`, name: em.name });
+        cursor = em.end + 1;
+      }
+      if (cursor < chars.length) segments.push({ type: 'text', value: chars.slice(cursor).join('') });
+      if (!segments.length) segments.push({ type: 'text', value: rawMessage });
+      let html = '';
+      for (const seg of segments) {
+        if (seg.type === 'img') {
+          html += `<img class="emote" src="${escapeHtml(seg.url)}" alt="${escapeHtml(seg.name)}" title="${escapeHtml(seg.name)}" loading="lazy">`;
+        } else {
+          const tokens = seg.value.split(/(\s+)/);
+          for (const token of tokens) {
+            if (!token) continue;
+            if (/^\s+$/.test(token)) { html += escapeHtml(token); continue; }
+            const tp = map.get(token);
+            if (tp && tp.url) {
+              html += `<img class="emote" src="${escapeHtml(tp.url)}" alt="${escapeHtml(token)}" title="${escapeHtml(token)} (${escapeHtml(tp.source || '?')})" loading="lazy">`;
+            } else {
+              html += escapeHtml(token);
+            }
+          }
+        }
+      }
+      return html;
+    }
+
+    function parseIRC(line) {
+      const m = line.match(/^(?:@([^ ]+) )?:([^!]+)![^ ]+ PRIVMSG #[^ ]+ :(.+)$/);
+      if (!m) return null;
+      const tags = Object.fromEntries(
+        (m[1]||'').split(';').filter(Boolean).map(p => {
+          const i = p.indexOf('=');
+          return i === -1 ? [p, ''] : [p.slice(0, i), p.slice(i + 1)];
+        })
+      );
+      const rawMessage = m[3];
+      const emotes = parseEmotes(tags.emotes || '', rawMessage);
+      const login  = (tags['login'] || m[2] || '').toLowerCase();
+      return {
+        id: tags.id || crypto.randomUUID(),
+        user:      tags['display-name'] || m[2],
+        login,
+        color:     tags.color || '#c8d4ff',
+        role:      parseRole(tags.badges || ''),
+        message:   rawMessage,
+        emotes,
+        timestamp: Number(tags['tmi-sent-ts'] || Date.now())
+      };
+    }
+
+    function formatTime(ts) { return new Date(ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+
+    function getUserHistory(user) {
+      const n = getHistoryCount();
+      return state.messages.filter(m => m.user.toLowerCase() === user.toLowerCase()).slice(-n).reverse();
+    }
+
+    function renderMessages() {
+      messageCount.textContent = state.messages.length;
+      if (!state.messages.length) {
+        chatList.innerHTML = '<div class="empty">Aucun message.<br>Connecte une chaîne ou utilise le bouton test.</div>';
+        return;
+      }
+      const reversed = [...state.messages].reverse();
+      const selIdx   = reversed.findIndex(m => m.id === state.selectedId);
+      chatList.innerHTML = reversed.map((msg, i) => {
+        const sel      = msg.id === state.selectedId;
+        const grayed   = selIdx !== -1 && i > selIdx;
+        const authorHl = state.historyUser && msg.user.toLowerCase() === state.historyUser.toLowerCase();
+        const textHtml = renderMessageHtml(msg.message, msg.emotes, emoteMap);
+        return `<article class="msg${sel?' selected':''}${grayed?' after-selected':''}" data-id="${escapeHtml(msg.id)}">
+          <div class="meta">
+            <span class="author${authorHl?' author-hl':''}" data-user="${escapeHtml(msg.user)}" style="color:${escapeHtml(msg.color)}" title="Cliquer pour voir l'historique">${escapeHtml(msg.user)}</span>
+            <span class="time">${formatTime(msg.timestamp)}</span>
+          </div>
+          <div class="text">${textHtml}</div>
+          ${sel ? '<div class="msg-hint">✕ Re-cliquer pour retirer l\'overlay</div>' : ''}
+        </article>`;
+      }).join('');
+    }
+
+    function addMessage(msg) {
+      state.messages.push(msg);
+      if (state.messages.length > state.maxMessages) state.messages.shift();
+      renderMessages();
+      chatList.scrollTop = 0;
+    }
+
+    function toggleMessage(id) {
+      if (state.selectedId === id) {
+        state.selectedId = null; state.historyUser = null;
+        renderMessages();
+        publish({ type: 'clear', channel: state.channel });
+      } else {
+        state.selectedId = id; state.historyUser = null;
+        const msg = state.messages.find(m => m.id === id);
+        renderMessages();
+        if (msg) publish({ type: 'highlight', message: msg, channel: state.channel });
+      }
+    }
+
+    function showUserHistory(user, silent) {
+      if (!silent) {
+        const already = state.historyUser && state.historyUser.toLowerCase() === user.toLowerCase();
+        if (already) {
+          state.historyUser = null; state.selectedId = null;
+          renderMessages();
+          publish({ type: 'clear', channel: state.channel });
+          return;
+        }
+      }
+      state.historyUser = user; state.selectedId = null;
+      const msgs = getUserHistory(user);
+      renderMessages();
+      publish({ type: 'history', user, messages: msgs, channel: state.channel });
+    }
+
+    function clearOverlay() {
+      state.selectedId = null; state.historyUser = null;
+      renderMessages();
+      publish({ type: 'clear', channel: state.channel });
+    }
+    clearBtn.addEventListener('click', clearOverlay);
+
+    function disconnect(showStatus) {
+      state.manualClose = true;
+      if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
+      if (state.socket) { try { state.socket.close(); } catch(_){} state.socket = null; }
+      if (showStatus) { setStatus('déconnecté.'); sidebar.classList.remove('collapsed'); }
+    }
+
+    function connect(channel) {
+      disconnect(false); state.manualClose = false;
+      state.channel = channel.replace(/^#/,'').trim().toLowerCase();
+      if (!state.channel) { setStatus('chaîne invalide.', 'error'); return; }
+      state.messages = [];
+      clearOverlay();
+      loadThirdPartyEmotes(state.channel);
+      const ws = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
+      state.socket = ws;
+      setStatus('connexion à #' + state.channel + '...');
+      ws.addEventListener('open', () => {
+        ws.send('CAP REQ :twitch.tv/tags twitch.tv/commands');
+        ws.send('PASS SCHMOOPIIE');
+        ws.send('NICK justinfan' + Math.floor(Math.random()*100000));
+        ws.send('JOIN #' + state.channel);
+        setStatus('connecté à #' + state.channel, 'ok');
+        sidebar.classList.add('collapsed');
+      });
+      ws.addEventListener('message', e => {
+        for (const line of e.data.split('\r\n').filter(Boolean)) {
+          if (line.startsWith('PING')) { ws.send('PONG :tmi.twitch.tv'); continue; }
+          const p = parseIRC(line); if (p) addMessage(p);
+        }
+      });
+      ws.addEventListener('close', () => {
+        state.socket = null;
+        if (!state.manualClose) { setStatus('connexion perdue, reconnexion dans 3s...','error'); state.reconnectTimer = setTimeout(()=>connect(state.channel),3000); }
+      });
+      ws.addEventListener('error', () => setStatus('erreur WebSocket.','error'));
+    }
+
+    connectBtn.addEventListener('click',    () => connect(channelInput.value));
+    disconnectBtn.addEventListener('click', () => disconnect(true));
+    simulateBtn.addEventListener('click',   doSimulate);
+    function doSimulate() {
+      const roles = ['broadcaster', 'moderator', 'vip', 'viewer'];
+      const users = ['StreameurDemo','ModDemo','VIPDemo','ViewerDemo'];
+      const idx = Math.floor(Math.random()*users.length);
+      const fake = {
+        id: crypto.randomUUID(),
+        user: users[idx], login: users[idx].toLowerCase(),
+        color: '#7c9cff', role: roles[idx],
+        message: "Exemple de message mis en avant dans l'overlay OBS.",
+        timestamp: Date.now(), emotes: []
+      };
+      addMessage(fake); toggleMessage(fake.id);
+    }
+
+    chatList.addEventListener('click', e => {
+      const authorEl = e.target.closest('.author');
+      if (authorEl) { e.stopPropagation(); showUserHistory(authorEl.dataset.user, false); return; }
+      const msgEl = e.target.closest('.msg');
+      if (msgEl) toggleMessage(msgEl.dataset.id);
+    });
+
+    titleInput.addEventListener('input', () => {
+      if (state.historyUser) {
+        publish({ type: 'history', user: state.historyUser, messages: getUserHistory(state.historyUser), channel: state.channel });
+      } else {
+        const m = state.messages.find(x => x.id === state.selectedId);
+        if (m) publish({ type: 'highlight', message: m, channel: state.channel });
+      }
+    });
+
+    makeLinks(); initBridge(); updateLeadText();
+    customCssArea.value = DEFAULT_CSS;
+    publishPosition();
+    try {
+      const ch = new URLSearchParams(window.location.search).get('channel');
+      if (ch) { channelInput.value = ch; connect(ch); }
+    } catch(_) {}
+  </script>
+</body>
+</html>

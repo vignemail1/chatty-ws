@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>overlay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --card: rgba(8,12,24,.86);
+      --border: rgba(255,255,255,.12);
+      --text: #f6f8ff;
+      --muted: #b8c2e2;
+      --accent: #7c9cff;
+      --accent-soft: rgba(124,156,255,.16);
+      --shadow: 0 24px 70px rgba(0,0,0,.45);
+
+      /* Couleurs de rôle : overridables via CSS personnalisé */
+      --role-broadcaster: #a970ff;  /* violet Twitch */
+      --role-moderator:   #00c853;  /* vert mod */
+      --role-vip:         #ff69b4;  /* rose VIP */
+      --role-viewer:      rgba(255,255,255,.25); /* neutre */
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; width: 100%; height: 100%;
+      background: transparent; overflow: hidden;
+      font-family: Inter, system-ui, sans-serif;
+    }
+    body {
+      display: flex;
+      align-items: var(--overlay-align, end);
+      justify-content: var(--overlay-justify, start);
+      padding: 32px;
+    }
+
+    .overlay {
+      width: fit-content;
+      min-width: 280px;
+      max-width: min(1400px, calc(100vw - 64px));
+      opacity: 0; transform: translateY(18px) scale(.985);
+      transition: opacity .28s ease, transform .28s ease;
+      pointer-events: none;
+    }
+    .overlay.visible { opacity: 1; transform: translateY(0) scale(1); }
+    body[data-pos-v="top"]    .overlay:not(.visible) { transform: translateY(-18px) scale(.985); }
+    body[data-pos-v="middle"] .overlay:not(.visible) { transform: scale(.985); }
+    body[data-pos-v="bottom"] .overlay:not(.visible) { transform: translateY(18px) scale(.985); }
+
+    /* ------------------------------------------------------------------ */
+    /* Carte principale                                                     */
+    /* ------------------------------------------------------------------ */
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01)), var(--card);
+      border: 1px solid var(--border); border-radius: 24px;
+      box-shadow: var(--shadow); backdrop-filter: blur(18px);
+      display: flex; flex-direction: column;
+      width: 100%;
+      /* Bord gauche coloré selon le rôle — défaut neutre, surcharge via data-role */
+      border-left: 5px solid var(--role-color, var(--role-viewer));
+      border-radius: 6px 24px 24px 6px;
+    }
+    .card[data-role="broadcaster"] { --role-color: var(--role-broadcaster); }
+    .card[data-role="moderator"]   { --role-color: var(--role-moderator); }
+    .card[data-role="vip"]         { --role-color: var(--role-vip); }
+    .card[data-role="viewer"]      { --role-color: var(--role-viewer); }
+
+    .topline {
+      display: flex; align-items: center;
+      padding: 9px 18px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      background: linear-gradient(90deg, var(--accent-soft), transparent 70%);
+      flex-shrink: 0;
+      border-radius: 0 22px 0 0;
+    }
+    .topline h1 {
+      margin: 0; font-size: 13px; font-weight: 700;
+      letter-spacing: .04em; color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Contenu highlight                                                    */
+    /* ------------------------------------------------------------------ */
+    .content { padding: 16px 20px 20px; }
+
+    /* Zone auteur : avatar + nom */
+    .author {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 12px;
+    }
+    /* En mode historique l'auteur est affiché dans la topline */
+    .topline .author {
+      margin-bottom: 0;
+      gap: 10px;
+    }
+    .topline .author-avatar,
+    .topline .author-avatar-fallback {
+      width: 32px; height: 32px;
+      font-size: 14px;
+    }
+    .topline .author-name  { font-size: 14px; }
+    .topline .author-role  { font-size: 10px; }
+
+    .author-avatar {
+      width: 48px; height: 48px; border-radius: 50%;
+      object-fit: cover; flex-shrink: 0;
+      border: 2px solid var(--role-color, var(--role-viewer));
+      background: rgba(255,255,255,.08);
+    }
+    .author-avatar-fallback {
+      width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
+      background: rgba(255,255,255,.08);
+      border: 2px solid var(--role-color, var(--role-viewer));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 800; color: var(--text);
+    }
+    .author-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .author-name {
+      font-size: 18px; font-weight: 800; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .author-role {
+      font-size: 11px; font-weight: 700; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--role-color, var(--role-viewer));
+      opacity: .85;
+    }
+
+    .message {
+      font-size: clamp(28px, 2.8vw, 44px); line-height: 1.4; color: var(--text); font-weight: 700;
+      white-space: pre-wrap; word-break: break-word; text-wrap: pretty;
+      text-shadow: 0 2px 10px rgba(0,0,0,.22);
+    }
+    .message img.emote {
+      height: 1.3em; width: auto; vertical-align: middle; margin: 0 2px; display: inline-block;
+    }
+    .history-text img.emote {
+      height: 1.3em; width: auto; vertical-align: middle; margin: 0 2px; display: inline-block;
+    }
+    .msg-meta { margin-top: 12px; color: var(--muted); font-size: 13px; }
+
+    /* ------------------------------------------------------------------ */
+    /* Mode historique                                                      */
+    /* ------------------------------------------------------------------ */
+    .card.history-mode .topline {
+      background: linear-gradient(90deg, color-mix(in srgb, var(--role-color, var(--role-viewer)) 18%, transparent), transparent 70%);
+    }
+    .history-list { display: flex; flex-direction: column; gap: 0; }
+    .history-item {
+      padding: 13px 20px;
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .history-item:last-child { border-bottom: none; padding-bottom: 18px; }
+    .history-item:first-child { padding-top: 16px; }
+    .history-text {
+      font-size: clamp(16px, 1.6vw, 24px); color: var(--text); font-weight: 600;
+      word-break: break-word; white-space: pre-wrap; line-height: 1.4;
+    }
+    .history-time { font-size: 11px; color: var(--muted); }
+    .history-empty { padding: 20px; font-size: 14px; color: var(--muted); text-align: center; }
+
+    @media (max-width: 700px) {
+      body { padding: 18px; }
+      .overlay { max-width: calc(100vw - 36px); }
+      .content { padding: 14px 16px 18px; }
+      .message { font-size: clamp(22px, 6vw, 32px); }
+      .author-name { font-size: 16px; }
+      .author-avatar, .author-avatar-fallback { width: 40px; height: 40px; font-size: 17px; }
+    }
+  </style>
+  <style id="customStyle"></style>
+</head>
+<body data-pos-v="bottom">
+  <div class="overlay" id="overlay">
+    <div class="card" id="card">
+      <div class="topline" id="topline">
+        <h1 id="title">Message mis en avant</h1>
+      </div>
+      <div class="content" id="hlContent">
+        <div class="author" id="author">
+          <!-- Avatar et fallback générés dynamiquement par JS -->
+        </div>
+        <div class="message" id="message">Le message sélectionné apparaîtra ici.</div>
+        <div class="msg-meta" id="msgMeta"></div>
+      </div>
+      <div class="history-list" id="historyList" style="display:none"></div>
+    </div>
+  </div>
+
+  <script>
+    const overlay      = document.getElementById('overlay');
+    const card         = document.getElementById('card');
+    const toplineEl    = document.getElementById('topline');
+    const titleEl      = document.getElementById('title');
+    const authorEl     = document.getElementById('author');
+    const messageEl    = document.getElementById('message');
+    const msgMetaEl    = document.getElementById('msgMeta');
+    const hlContent    = document.getElementById('hlContent');
+    const historyList  = document.getElementById('historyList');
+    const customStyle  = document.getElementById('customStyle');
+
+    /* Labels lisibles pour les rôles */
+    const ROLE_LABEL = {
+      broadcaster: 'Streameur',
+      moderator:   'Modérateur',
+      vip:         'VIP',
+      viewer:      ''
+    };
+
+    function formatTime(ts) {
+      return new Date(ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    }
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function renderMessageHtml(rawMessage, twitchEmotes, thirdParty) {
+      let map;
+      if (thirdParty && typeof thirdParty === 'object' && !(thirdParty instanceof Map)) {
+        map = new Map(Object.entries(thirdParty));
+      } else if (thirdParty instanceof Map) {
+        map = thirdParty;
+      } else {
+        map = new Map();
+      }
+      const chars = [...rawMessage];
+      const sorted = (Array.isArray(twitchEmotes) ? twitchEmotes : [])
+        .filter(em => typeof em.start === 'number' && typeof em.end === 'number')
+        .slice().sort((a, b) => a.start - b.start);
+      const segments = [];
+      let cursor = 0;
+      for (const em of sorted) {
+        if (em.start > cursor) segments.push({ type: 'text', value: chars.slice(cursor, em.start).join('') });
+        segments.push({ type: 'img', url: `https://static-cdn.jtvnw.net/emoticons/v2/${esc(String(em.id))}/default/dark/2.0`, name: em.name || em.id });
+        cursor = em.end + 1;
+      }
+      if (cursor < chars.length) segments.push({ type: 'text', value: chars.slice(cursor).join('') });
+      if (!segments.length) segments.push({ type: 'text', value: rawMessage });
+      let html = '';
+      for (const seg of segments) {
+        if (seg.type === 'img') {
+          html += `<img class="emote" src="${seg.url}" alt="${esc(seg.name)}" title="${esc(seg.name)}" loading="lazy">`;
+        } else {
+          const tokens = seg.value.split(/(\s+)/);
+          for (const token of tokens) {
+            if (!token) continue;
+            if (/^\s+$/.test(token)) { html += esc(token); continue; }
+            const tp = map.get(token);
+            if (tp && tp.url) {
+              html += `<img class="emote" src="${esc(tp.url)}" alt="${esc(token)}" title="${esc(token)} (${esc(tp.source || '?')})" loading="lazy">`;
+            } else {
+              html += esc(token);
+            }
+          }
+        }
+      }
+      return html;
+    }
+
+    function applyCustomCss(css) { customStyle.textContent = css || ''; }
+
+    function applyPosition(p) {
+      if (!p || !p.position) return;
+      document.body.style.setProperty('--overlay-align',   p.alignItems    || 'end');
+      document.body.style.setProperty('--overlay-justify', p.justifyContent || 'start');
+      const posV = p.position.startsWith('top') ? 'top' : p.position.startsWith('bottom') ? 'bottom' : 'middle';
+      document.body.setAttribute('data-pos-v', posV);
+    }
+
+    /**
+     * Construit un bloc auteur (avatar + nom + rôle).
+     * @param {HTMLElement} container  — élément DOM cible
+     * @param {string}      login      — login Twitch (pour l'avatar)
+     * @param {string}      displayName
+     * @param {string}      color      — couleur pseudo
+     * @param {string}      role       — broadcaster | moderator | vip | viewer
+     * @param {number}      size       — 48 (highlight) ou 32 (historique topline)
+     */
+    function buildAuthorBlock(container, login, displayName, color, role, size) {
+      size = size || 48;
+      const roleLabel = ROLE_LABEL[role] || '';
+      const initial   = (displayName || login || '?')[0].toUpperCase();
+      const avatarUrl = login ? `https://unavatar.io/twitch/${encodeURIComponent(login)}` : '';
+
+      container.innerHTML = '';
+
+      if (avatarUrl) {
+        const img = document.createElement('img');
+        img.className = 'author-avatar';
+        img.alt = displayName || login;
+        img.width = size; img.height = size;
+        img.style.width = size + 'px'; img.style.height = size + 'px';
+        img.src = avatarUrl;
+        img.addEventListener('error', () => {
+          const fb = document.createElement('div');
+          fb.className = 'author-avatar-fallback';
+          fb.style.width = size + 'px'; fb.style.height = size + 'px';
+          fb.style.fontSize = Math.round(size * 0.42) + 'px';
+          fb.textContent = initial;
+          img.replaceWith(fb);
+        });
+        container.appendChild(img);
+      } else {
+        const fb = document.createElement('div');
+        fb.className = 'author-avatar-fallback';
+        fb.style.width = size + 'px'; fb.style.height = size + 'px';
+        fb.style.fontSize = Math.round(size * 0.42) + 'px';
+        fb.textContent = initial;
+        container.appendChild(fb);
+      }
+
+      const info = document.createElement('div');
+      info.className = 'author-info';
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'author-name';
+      nameEl.style.color = color || '#c8d4ff';
+      nameEl.textContent = displayName || login || 'Viewer';
+      info.appendChild(nameEl);
+
+      if (roleLabel) {
+        const roleEl = document.createElement('span');
+        roleEl.className = 'author-role';
+        roleEl.textContent = roleLabel;
+        info.appendChild(roleEl);
+      }
+
+      container.appendChild(info);
+    }
+
+    function showHighlight(p) {
+      card.classList.remove('history-mode');
+      hlContent.style.display = '';
+      historyList.style.display = 'none';
+
+      // Restaurer la topline en mode titre simple
+      toplineEl.innerHTML = '';
+      const h1 = document.createElement('h1');
+      h1.id = 'title';
+      toplineEl.appendChild(h1);
+      h1.textContent = p.title || 'Message mis en avant';
+
+      const msg   = p.message || {};
+      const role  = msg.role  || 'viewer';
+      const login = msg.login || (msg.user || '').toLowerCase();
+
+      card.setAttribute('data-role', role);
+      buildAuthorBlock(authorEl, login, msg.user, msg.color, role, 48);
+
+      messageEl.innerHTML = renderMessageHtml(
+        msg.message  || '',
+        msg.emotes   || [],
+        p.thirdPartyEmotes || null
+      );
+      msgMetaEl.textContent = (p.channel ? '#'+p.channel+' · ' : '') + formatTime(msg.timestamp || Date.now());
+      overlay.classList.add('visible');
+    }
+
+    function showHistory(p) {
+      card.classList.add('history-mode');
+      hlContent.style.display = 'none';
+      historyList.style.display = '';
+
+      const msgs  = p.messages || [];
+      const n     = msgs.length;
+
+      // Déduire le rôle depuis le premier message disponible
+      const role  = (msgs[0] && msgs[0].role) || 'viewer';
+      const login = (msgs[0] && (msgs[0].login || (msgs[0].user || '').toLowerCase())) || '';
+      const color = (msgs[0] && msgs[0].color) || '#c8d4ff';
+
+      // Appliquer le bord coloré selon le rôle de l'auteur
+      card.setAttribute('data-role', role);
+
+      // Construire la topline : avatar compact + titre
+      toplineEl.innerHTML = '';
+      const authorInline = document.createElement('div');
+      authorInline.className = 'author';
+      buildAuthorBlock(authorInline, login, p.user || login, color, role, 32);
+      toplineEl.appendChild(authorInline);
+
+      const h1 = document.createElement('h1');
+      h1.id = 'title';
+      h1.textContent = `${n} dernier${n > 1 ? 's' : ''} message${n > 1 ? 's' : ''}`;
+      toplineEl.appendChild(h1);
+
+      if (!msgs.length) {
+        historyList.innerHTML = '<div class="history-empty">Aucun message trouvé.</div>';
+      } else {
+        historyList.innerHTML = msgs.map(m =>
+          `<div class="history-item">
+            <div class="history-text">${renderMessageHtml(m.message || '', m.emotes || [], p.thirdPartyEmotes || null)}</div>
+            <div class="history-time">${formatTime(m.timestamp)}</div>
+          </div>`
+        ).join('');
+      }
+      overlay.classList.add('visible');
+    }
+
+    function handlePayload(p) {
+      if (!p) return;
+      if (p.position) applyPosition(p);
+      if (p.customCss !== undefined) applyCustomCss(p.customCss);
+      if (!p.type) return;
+      if (p.type === 'highlight') showHighlight(p);
+      if (p.type === 'history')   showHistory(p);
+      if (p.type === 'clear')     overlay.classList.remove('visible');
+      if (p.type === 'css')       applyCustomCss(p.customCss || '');
+      if (p.type === 'position')  applyPosition(p);
+    }
+
+    try {
+      const saved = localStorage.getItem('twitch-highlight-sync');
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.customCss !== undefined) applyCustomCss(data.customCss);
+        if (data.position) applyPosition(data);
+        handlePayload(data);
+      }
+    } catch(_) {}
+
+    if ('BroadcastChannel' in window) {
+      const bc = new BroadcastChannel('twitch-highlight-overlay');
+      bc.onmessage = e => handlePayload(e.data);
+    }
+    window.addEventListener('storage', e => {
+      if (e.key === 'twitch-highlight-sync' && e.newValue) {
+        try { handlePayload(JSON.parse(e.newValue)); } catch(_) {}
+      }
+    });
+  </script>
+</body>
+</html>
