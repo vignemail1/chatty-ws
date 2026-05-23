@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Authentification Twitch…</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      min-height: 100vh;
+      background: #0b1020;
+      color: #eef2ff;
+      font-family: Inter, system-ui, sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center;
+    }
+    .box {
+      display: flex; flex-direction: column; align-items: center; gap: 18px;
+      padding: 40px;
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid rgba(124,156,255,.2);
+      border-top-color: #7c9cff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    p { color: #9aa7cf; font-size: 14px; }
+    .error { color: #ff6b8a; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="spinner" id="spinner"></div>
+    <p id="msg">Authentification en cours…</p>
+  </div>
+  <script>
+    (function () {
+      const params  = new URLSearchParams(window.location.search);
+      const code    = params.get('code');
+      const state   = params.get('state');
+      const error   = params.get('error');
+      const errDesc = params.get('error_description');
+
+      const msgEl     = document.getElementById('msg');
+      const spinner   = document.getElementById('spinner');
+
+      function fail(reason) {
+        spinner.style.borderTopColor = '#ff6b8a';
+        msgEl.className = 'error';
+        msgEl.textContent = reason;
+        // Tente quand même de notifier l'opener
+        if (window.opener) {
+          try { window.opener.postMessage({ type: 'twitch-oauth-error', error: reason }, '*'); } catch(_) {}
+        }
+        setTimeout(() => window.close(), 4000);
+      }
+
+      if (error) { fail(errDesc || error); return; }
+      if (!code)  { fail('Aucun code reçu depuis Twitch.'); return; }
+
+      // Communique le code à la fenêtre principale
+      if (window.opener) {
+        try {
+          window.opener.postMessage(
+            { type: 'twitch-oauth-callback', code, state },
+            // On cible toutes les origines car la page parente peut être
+            // file:// ou GitHub Pages (origin inconnue à la compilation)
+            '*'
+          );
+          msgEl.textContent = 'Authentification réussie. Fermeture…';
+          spinner.style.borderTopColor = '#5de4c7';
+          setTimeout(() => window.close(), 800);
+        } catch(e) {
+          fail('Impossible de communiquer avec la fenêtre principale : ' + e.message);
+        }
+      } else {
+        // Fallback si pas d'opener : stocke dans localStorage
+        try {
+          localStorage.setItem('twitch-oauth-code', JSON.stringify({ code, state, ts: Date.now() }));
+          msgEl.textContent = 'Code stocké. Retournez à la fenêtre principale.';
+        } catch(_) {
+          fail('Impossible de communiquer avec la fenêtre principale.');
+        }
+      }
+    })();
+  </script>
+</body>
+</html>
